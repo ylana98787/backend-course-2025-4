@@ -5,14 +5,19 @@ import { XMLBuilder } from 'fast-xml-parser';
 
 const program = new Command();
 
-// Налаштування параметрів командного рядка
+// Налаштування параметрів командного рядка з значеннями за замовчуванням
 program
-  .requiredOption('-i, --input <path>', 'шлях до JSON файлу')
-  .requiredOption('-h, --host <address>', 'адреса сервера')
-  .requiredOption('-p, --port <number>', 'порт сервера', parseInt)
+  .option('-i, --input <path>', 'шлях до JSON файлу', 'titanic.json')
+  .option('-h, --host <address>', 'адреса сервера', 'localhost')
+  .option('-p, --port <number>', 'порт сервера', 3000, parseInt)
   .parse(process.argv);
 
 const options = program.opts();
+
+console.log('Server configuration:');
+console.log('- Input file:', options.input);
+console.log('- Host:', options.host);
+console.log('- Port:', options.port);
 
 // Функція для читання JSONL файлу
 async function readJSONLFile(filePath) {
@@ -32,9 +37,13 @@ async function readJSONLFile(filePath) {
     
     console.log(`Successfully loaded ${result.length} records from JSONL file`);
     return result;
-  } catch (error) {
+ } catch (error) {
+  if (error.code === 'ENOENT') {
+    throw new Error('Cannot find input file');
+  } else {
     throw new Error(`Cannot read or parse input file: ${error.message}`);
   }
+}
 }
 
 // Функція для читання звичайного JSON файлу
@@ -65,7 +74,11 @@ try {
   console.log('First record structure:', Object.keys(passengersData[0]));
   
 } catch (err) {
-  console.error('Error loading file:', err.message);
+  if (err.code === 'ENOENT') {
+    console.error('Cannot find input file');
+  } else {
+    console.error('Error loading file:', err.message);
+  }
   process.exit(1);
 }
 
@@ -167,4 +180,13 @@ server.listen(options.port, options.host, () => {
 // Обробка помилок сервера
 server.on('error', (err) => {
   console.error('Server error:', err);
+});
+
+// Обробка завершення процесу
+process.on('SIGINT', () => {
+  console.log('\nShutting down server...');
+  server.close(() => {
+    console.log('Server stopped');
+    process.exit(0);
+  });
 });
